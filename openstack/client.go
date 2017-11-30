@@ -159,8 +159,19 @@ func v2auth(client *gophercloud.ProviderClient, endpoint string, options gopherc
 
 	if options.AllowReauth && client.ReauthFunc == nil {
 		client.ReauthFunc = func() error {
+			// get the token before reauth
+			client.TokenLock.Lock()
+			originToken := client.TokenID
+			client.TokenLock.Unlock()
+
 			client.TokenLock.Lock()
 			defer client.TokenLock.Unlock()
+			// get token in case other routine update the token
+			newToken := client.TokenID
+			if originToken != newToken {
+				// skip reauth in case the token has been updated
+				return nil
+			}
 			client.TokenID = ""
 			return v2auth(client, endpoint, options, eo)
 		}
@@ -206,8 +217,20 @@ func v3auth(client *gophercloud.ProviderClient, endpoint string, opts tokens3.Au
 	if opts.CanReauth() {
 		if client.ReauthFunc == nil {
 			client.ReauthFunc = func() error {
+				// get the token before reauth
+				client.TokenLock.Lock()
+				originToken := client.TokenID
+				client.TokenLock.Unlock()
+
 				client.TokenLock.Lock()
 				defer client.TokenLock.Unlock()
+				// get token in case other routine update the token
+				newToken := client.TokenID
+				if originToken != newToken {
+					// skip reauth in case the token has been updated
+					return nil
+				}
+
 				client.TokenID = ""
 				return v3auth(client, endpoint, opts, eo)
 			}
